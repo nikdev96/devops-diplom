@@ -79,9 +79,9 @@
 | **Node Exporter** | Сбор метрик с узлов кластера |
 | **Kube State Metrics** | Метрики объектов Kubernetes |
 
-### Скриншот Grafana
+### Скриншот Grafana и приложения
 
-![Grafana Dashboard](img/1.png)
+![Grafana и приложение](img/1.png)
 
 ---
 
@@ -95,15 +95,15 @@
 - Встроенный health check (`/health`)
 - 2 реплики для отказоустойчивости
 
-### Скриншот приложения
-
-![Application](img/2.png)
-
 ---
 
 ## CI/CD
 
 Реализовано два GitHub Actions workflow:
+
+### Скриншот CI/CD pipeline
+
+![CI/CD Pipeline](img/2.png)
 
 ### CI — Сборка образа
 
