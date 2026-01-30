@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlantis
+  namespace: atlantis
+  labels:
+    app: atlantis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: atlantis
+  template:
+    metadata:
+      labels:
+        app: atlantis
+    spec:
+      containers:
+        - name: atlantis
+          image: ghcr.io/runatlantis/atlantis:v0.28.0
+          env:
+            - name: ATLANTIS_REPO_ALLOWLIST
+              value: "github.com/nikdev96/devops-diplom"
+            - name: ATLANTIS_GH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: github-user
+            - name: ATLANTIS_GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: github-token
+            - name: ATLANTIS_GH_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: webhook-secret
+            - name: YC_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: yc-token
+            - name: YC_CLOUD_ID
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: yc-cloud-id
+            - name: YC_FOLDER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: yc-folder-id
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: s3-access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: atlantis-secrets
+                  key: s3-secret-key
+          ports:
+            - name: http
+              containerPort: 4141
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 4141
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 4141
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atlantis
+  namespace: atlantis
+spec:
+  type: NodePort
+  selector:
+    app: atlantis
+  ports:
+    - port: 4141
+      targetPort: 4141
+      nodePort: 30141
