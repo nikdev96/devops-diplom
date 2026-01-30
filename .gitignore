@@ -45,3 +45,4 @@ kubeconfig
 
 # Ansible
 *.retry
+kubespray/

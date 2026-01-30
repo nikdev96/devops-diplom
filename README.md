@@ -1,182 +1,292 @@
-# DevOps Diploma Project
+# Дипломная работа по курсу «DevOps-инженер»
 
-Развертывание облачной инфраструктуры в Yandex Cloud с Kubernetes кластером, системой мониторинга и CI/CD пайплайном.
+## Описание проекта
 
-## Структура проекта
+Данный проект представляет собой полноценную облачную инфраструктуру, развёрнутую в Yandex Cloud. В рамках работы реализованы:
+
+- Автоматическое создание инфраструктуры с помощью Terraform
+- Kubernetes кластер, развёрнутый через Kubespray
+- Система мониторинга на базе Prometheus и Grafana
+- CI/CD пайплайн с автоматической сборкой и деплоем приложения
+
+---
+
+## Инфраструктура
+
+### Облачные ресурсы
+
+Вся инфраструктура разворачивается в Yandex Cloud и включает:
+
+| Ресурс | Описание |
+|--------|----------|
+| **VPC** | Виртуальная сеть с тремя подсетями в разных зонах доступности |
+| **Compute** | 3 виртуальные машины (1 master + 2 worker) на Ubuntu 22.04 |
+| **Container Registry** | Приватный реестр для хранения Docker-образов |
+| **Object Storage** | S3-бакет для хранения состояния Terraform |
+
+### Схема сети
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        VPC: diploma-vpc                      │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ ru-central1-a │  │ ru-central1-b │  │ ru-central1-d │       │
+│  │ 10.10.1.0/24 │  │ 10.10.2.0/24 │  │ 10.10.3.0/24 │       │
+│  │              │  │              │  │              │       │
+│  │   master     │  │   worker-1   │  │   worker-2   │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Kubernetes кластер
+
+Кластер развёрнут с использованием Kubespray и состоит из:
+
+- **1 Master-нода** — управляющий узел с control plane компонентами
+- **2 Worker-ноды** — рабочие узлы для запуска приложений
+
+### Характеристики нод
+
+| Параметр | Значение |
+|----------|----------|
+| ОС | Ubuntu 22.04 LTS |
+| CPU | 2 vCPU |
+| RAM | 4 GB |
+| Диск | 50 GB SSD |
+| Тип | Прерываемые (preemptible) |
+
+### Установленные компоненты
+
+- Kubernetes v1.28.6
+- Calico (сетевой плагин)
+- CoreDNS
+- Metrics Server
+
+---
+
+## Мониторинг
+
+Система мониторинга развёрнута с использованием Helm-чарта `kube-prometheus-stack` и включает:
+
+| Компонент | Назначение |
+|-----------|------------|
+| **Prometheus** | Сбор и хранение метрик (retention: 7 дней) |
+| **Grafana** | Визуализация метрик и дашборды |
+| **Alertmanager** | Управление алертами |
+| **Node Exporter** | Сбор метрик с узлов кластера |
+| **Kube State Metrics** | Метрики объектов Kubernetes |
+
+### Скриншот Grafana
+
+![Grafana Dashboard](img/1.png)
+
+---
+
+## Тестовое приложение
+
+Простое веб-приложение на базе Nginx, отображающее информацию о деплое.
+
+### Особенности
+
+- Базовый образ: `nginx:1.25-alpine`
+- Встроенный health check (`/health`)
+- 2 реплики для отказоустойчивости
+
+### Скриншот приложения
+
+![Application](img/2.png)
+
+---
+
+## CI/CD
+
+Реализовано два GitHub Actions workflow:
+
+### CI — Сборка образа
+
+**Триггер:** Push в ветку `main`
+
+Этапы:
+1. Checkout кода
+2. Авторизация в Yandex Container Registry
+3. Сборка Docker-образа
+4. Push образа с тегами `latest` и `<commit-sha>`
+
+### CD — Деплой в кластер
+
+**Триггер:** Создание тега вида `v*` (например, `v1.0.0`)
+
+Этапы:
+1. Сборка образа с версионным тегом
+2. Push в Container Registry
+3. Обновление Deployment в Kubernetes
+4. Ожидание успешного rollout
+
+---
+
+## Структура репозитория
 
 ```
 .
 ├── terraform/
-│   ├── 00-sa-bucket/     # Сервисный аккаунт и S3 bucket
-│   ├── 01-network/       # VPC и подсети
-│   ├── 02-compute/       # ВМ для K8s кластера
-│   └── 03-registry/      # Container Registry
+│   ├── 00-sa-bucket/        # Сервисный аккаунт и S3 для state
+│   ├── 01-network/          # VPC и подсети
+│   ├── 02-compute/          # Виртуальные машины
+│   └── 03-registry/         # Container Registry
+│
 ├── ansible/
-│   ├── inventory/        # Inventory для Kubespray
+│   ├── inventory/           # Inventory для Kubespray
 │   └── generate-inventory.sh
+│
 ├── kubernetes/
-│   ├── app/              # Манифесты приложения
-│   ├── monitoring/       # Конфигурация мониторинга
-│   └── atlantis/         # Atlantis для Terraform PR
-├── app/                  # Тестовое приложение
-├── scripts/              # Вспомогательные скрипты
-├── .github/workflows/    # CI/CD пайплайны
-└── atlantis.yaml         # Конфигурация Atlantis
+│   ├── app/                 # Манифесты приложения
+│   ├── monitoring/          # Конфигурация Prometheus/Grafana
+│   └── atlantis/            # Atlantis для Terraform
+│
+├── app/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── static/
+│
+├── scripts/
+│   ├── setup-kubespray.sh
+│   ├── deploy-monitoring.sh
+│   └── deploy-app.sh
+│
+├── .github/workflows/
+│   ├── ci.yml               # Сборка образа
+│   └── cd.yml               # Деплой в кластер
+│
+└── img/                     # Скриншоты для документации
 ```
 
-## Порядок развертывания
+---
 
-### 1. Настройка Yandex Cloud
+## Доступ к сервисам
+
+| Сервис | URL | Порт |
+|--------|-----|------|
+| **Приложение** | http://89.169.140.116:30000 | NodePort 30000 |
+| **Grafana** | http://89.169.140.116:30080 | NodePort 30080 |
+
+### Учётные данные Grafana
+
+- **Логин:** admin
+- **Пароль:** securePassword123
+
+---
+
+## Инструкция по развёртыванию
+
+### Предварительные требования
+
+- Yandex Cloud CLI (`yc`)
+- Terraform >= 1.0
+- kubectl
+- Helm
+- Ansible
+
+### Шаг 1. Настройка Yandex Cloud
 
 ```bash
-# Установка yc CLI
-curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
-
-# Инициализация
+# Инициализация yc CLI
 yc init
 
-# Экспорт переменных
+# Экспорт переменных окружения
 export YC_TOKEN=$(yc iam create-token)
 export YC_CLOUD_ID=$(yc config get cloud-id)
 export YC_FOLDER_ID=$(yc config get folder-id)
 ```
 
-### 2. Terraform: Сервисный аккаунт и S3 bucket
+### Шаг 2. Создание backend для Terraform
 
 ```bash
 cd terraform/00-sa-bucket
-cp ../terraform.tfvars.example terraform.tfvars
-# Заполните terraform.tfvars
-
-terraform init
-terraform apply
-
-# Сохраните outputs для backend configuration
-terraform output -raw access_key
-terraform output -raw secret_key
-terraform output -raw bucket_name
+terraform init && terraform apply
 ```
 
-### 3. Terraform: VPC и подсети
+### Шаг 3. Создание сетевой инфраструктуры
 
 ```bash
 cd terraform/01-network
-# Обновите backend.tf с bucket name из предыдущего шага
-
-export AWS_ACCESS_KEY_ID=<access_key>
-export AWS_SECRET_ACCESS_KEY=<secret_key>
-
-terraform init
-terraform apply
+terraform init && terraform apply
 ```
 
-### 4. Terraform: Compute (K8s nodes)
+### Шаг 4. Создание виртуальных машин
 
 ```bash
 cd terraform/02-compute
-terraform init
-terraform apply
+terraform init && terraform apply
 ```
 
-### 5. Terraform: Container Registry
+### Шаг 5. Создание Container Registry
 
 ```bash
 cd terraform/03-registry
-terraform init
-terraform apply
-
-# Получите registry ID для CI/CD
-terraform output -raw registry_id
+terraform init && terraform apply
 ```
 
-### 6. Kubespray: Kubernetes кластер
+### Шаг 6. Развёртывание Kubernetes
 
 ```bash
-# Настройка Kubespray
 ./scripts/setup-kubespray.sh
-
-# Генерация inventory из Terraform outputs
 ./ansible/generate-inventory.sh
 
-# Развертывание кластера
 cd kubespray
-source venv/bin/activate
 ansible-playbook -i inventory/diploma-cluster/hosts.yaml \
   --become --become-user=root \
-  -u ubuntu \
-  cluster.yml
+  -u ubuntu cluster.yml
 ```
 
-### 7. Настройка kubectl
+### Шаг 7. Настройка kubectl
 
 ```bash
-# Скопировать kubeconfig с master ноды
 scp ubuntu@<master_ip>:/etc/kubernetes/admin.conf ~/.kube/config
-
-# Проверка
 kubectl get nodes
 ```
 
-### 8. Развертывание мониторинга
+### Шаг 8. Деплой мониторинга и приложения
 
 ```bash
 ./scripts/deploy-monitoring.sh
+./scripts/deploy-app.sh
 ```
 
-### 9. Развертывание приложения
-
-```bash
-./scripts/deploy-app.sh <registry_id>
-```
-
-### 10. Настройка Atlantis
-
-```bash
-# Создание секретов
-./kubernetes/atlantis/create-secrets.sh
-
-# Развертывание
-kubectl apply -f kubernetes/atlantis/
-```
+---
 
 ## GitHub Secrets
 
-Для CI/CD необходимо настроить следующие секреты в репозитории:
+Для работы CI/CD необходимо добавить следующие секреты:
 
-- `YC_REGISTRY_ID` - ID Container Registry
-- `YC_SA_JSON_CREDENTIALS` - JSON ключ сервисного аккаунта
-- `KUBE_CONFIG` - base64-encoded kubeconfig
+| Секрет | Описание |
+|--------|----------|
+| `YC_REGISTRY_ID` | ID Container Registry в Yandex Cloud |
+| `YC_SA_JSON_CREDENTIALS` | JSON-ключ сервисного аккаунта |
+| `KUBE_CONFIG` | Base64-encoded kubeconfig |
 
-```bash
-# Получение JSON ключа
-terraform -chdir=terraform/03-registry output -raw pusher_sa_key_json > sa-key.json
-cat sa-key.json | base64
+---
 
-# Кодирование kubeconfig
-cat ~/.kube/config | base64
-```
-
-## Endpoints
-
-| Сервис | URL |
-|--------|-----|
-| Приложение | http://\<node_ip\>:30000 |
-| Grafana | http://\<node_ip\>:30080 |
-| Atlantis | http://\<node_ip\>:30141 |
-
-## Верификация
+## Проверка работоспособности
 
 ```bash
-# Проверка кластера
+# Статус нод кластера
 kubectl get nodes
+
+# Все поды в кластере
 kubectl get pods --all-namespaces
 
 # Проверка приложения
-curl http://<node_ip>:30000
+curl http://89.169.140.116:30000
 
-# Проверка мониторинга
-curl http://<node_ip>:30080
-
-# Проверка Atlantis
-curl http://<node_ip>:30141
+# Проверка Grafana
+curl http://89.169.140.116:30080
 ```
+
+---
+
+## Автор
+
+Выполнено в рамках дипломной работы по курсу «DevOps-инженер» (Нетология)
